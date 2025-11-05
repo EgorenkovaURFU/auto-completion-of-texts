@@ -1,7 +1,7 @@
 import re
 
 
-def clean_text(text: str) -> str:
+def clean_text(text):
 
     """
     This function cleans a text: 
