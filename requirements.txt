@@ -2,6 +2,9 @@
 torch==2.5.1+cu121
 torchaudio==2.5.1+cu121
 torchvision==0.20.1+cu121
-pandas==2.3.3
 datasets==4.4.0
 transformers==4.57.1
+optuna==4.5.0
+rouge_score==0.1.2
+seaborn==0.13.2
+wordcloud==1.9.4
