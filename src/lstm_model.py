@@ -8,11 +8,23 @@ class RNN(torch.nn.Module):
 
         self.emb = torch.nn.Embedding(vacab_size, emb_dim, padding_idx=padding_idx)
         self.rnn = torch.nn.LSTM(emb_dim, hidden, batch_first=True)
+        self.norm = torch.nn.LayerNorm(hidden)
+        self.dropout = torch.nn.Dropout(0.5)
         self.out = torch.nn.Linear(hidden, vacab_size)
+
+        self.init_weights()
+
+    def init_weights(self):
+        torch.nn.init.xavier_uniform_(self.out.weight)
+        for name, param in self.rnn.named_parameters():
+            if 'weight' in name:
+                torch.nn.init.xavier_uniform_(param)
 
     def forward(self, x):
         emb = self.emb(x)
         out, _ = self.rnn(emb)
+        out = self.norm(out)
+        out = self.dropout(out)
         logits = self.out(out)
         return logits
     
