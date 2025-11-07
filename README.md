@@ -8,5 +8,5 @@
 
 **Клонирование репозитория**  
 
-`git clone <repo_url>  
-cd <project_folder>`
+`git clone <repo_url>`  
+`cd <project_folder>`
