@@ -2,52 +2,72 @@
 import torch
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
+from typing import List, Tuple
+
+    
 
 class CustomDataset(Dataset):
+    def __init__(self, hf_dataset):
+        # hf_dataset — это HF Dataset с set_format("torch")
+        self.ds = hf_dataset
 
-    def __init__(self, inputs: list[list[str]], targets: list[list[int]]):
-        super().__init__()
-
-        assert len(inputs) == len(targets)
-
-        self.inputs = inputs
-        self.targets = targets
-
-        # self.encodings = tokeniser(texts, paddings='max_lenght', truncation=True, 
-        #                            max_length=max_len, return_tensors='pt')
-        # self.labels = torch.tensor()
-        
     def __len__(self):
-        return len(self.targets)
-    
+        return len(self.ds)
+
     def __getitem__(self, idx):
-        return torch.tensor(self.inputs[idx], dtype=torch.long), torch.tensor(self.targets[idx], dtype=torch.long)
+        # возвращаем только input_ids
+        return self.ds[idx]["input_ids"]
 
-    
-# def collate_fn(batch):
 
-#     # # inps = [b[0] for b in batch]
-#     # # tgts = [b[1] for b in batch]
-#     # # inps_p = pad_packed_sequence(inps, batch_first=True, padding_value=0)
-#     # # tgts_p = pad_packed_sequence(tgts, batch_first=True, padding_value=0)
-#     # # mask = (tgts_p != 0)
-#     # # return inps_p, tgts_p, mask
-#     # inputs = [torch.tensor(x[0], dtype=torch.long) for x in batch]
-#     # targets = [torch.tensor(x[1], dtype=torch.long) for x in batch]
-#     # masks = [torch.tensor(x[2], dtype=torch.long) for x in batch]
-#     # # Паддим по значению pad_id
-#     # inputs_padded = pad_sequence(inputs, batch_first=True, padding_value=0)
-#     # targets_padded = pad_sequence(targets, batch_first=True, padding_value=0)
-#     # masks_padded = pad_sequence(masks, batch_first=True, padding_value=0)
-#     # return inputs_padded, targets_padded, masks_padded
+def make_collate_fn(pad_id: int):
+    """
+    Возвращает collate_fn, захватывая pad_id из окружения.
+    Collate возвращает: inputs_padded [B, L], targets_padded [B, L], mask [B, L], lengths (list[int])
+    """
+    def collate_fn(batch):
+        # batch: list of tuples (inp_tensor, tgt_tensor) (1D tensors)
+        """
+        batch: list of dicts {'input_ids': tensor}
+        """
+        # Берём только input_ids
+        sequences = [x["input_ids"] if isinstance(x, dict) else x for x in batch]
 
-def collate_fn(batch):
-    inputs = [torch.tensor(x[0], dtype=torch.long) for x in batch]
-    targets = [torch.tensor(x[1], dtype=torch.long) for x in batch]
-    
-    inputs_padded = pad_sequence(inputs, batch_first=True, padding_value=0)
-    targets_padded = pad_sequence(targets, batch_first=True, padding_value=0)
-    
-    mask = (targets_padded != 0)  # тензор bool: где не пад
-    return inputs_padded, targets_padded, mask
+        # Пропускаем слишком короткие последовательности
+        sequences = [seq for seq in sequences if seq.numel() > 1]
 
+        if len(sequences) == 0:
+            raise ValueError("Все последовательности слишком короткие!")
+
+        # Формируем input и target для next-token prediction
+        inputs = [seq[:-1] for seq in sequences]   # input = все токены кроме последнего
+        targets = [seq[1:] for seq in sequences]
+
+        # lengths BEFORE padding (по inputs или targets — в LM они близки)
+        lengths = torch.tensor([t.size(0) for t in inputs], dtype=torch.long)
+
+        # pad_sequence возвращает тензор [B, max_len]
+        inputs_padded = pad_sequence(inputs, batch_first=True, padding_value=pad_id)
+        targets_padded = pad_sequence(targets, batch_first=True, padding_value=pad_id)
+
+        # mask (True где валидные токены)
+        mask = (targets_padded != pad_id)
+
+        return inputs_padded, targets_padded, mask, lengths
+
+    return collate_fn
+
+
+
+class TextDataset(Dataset):
+    def __init__(self, texts, tokenizer, max_len=128):
+        self.texts = texts
+        self.tokenizer = tokenizer
+        self.max_len = max_len
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        text = self.texts[idx]
+        ids = self.tokenizer.encode(text, truncation=True, max_length=self.max_len)
+        return torch.tensor(ids, dtype=torch.long)

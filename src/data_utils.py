@@ -18,7 +18,7 @@ def clean_text(text):
     text = text.lower()
     text = URL_RE.sub(" <url> ", text)
     text = USER_RE.sub(" <user> ", text)
-    text = re.sub(r"[^a-z0-9]+", " ", text)
+    text = re.sub(r"[^a-z0-9'\s]+", " ", text)
     text = re.sub(r"\s+", " ", text)
 
     return text
