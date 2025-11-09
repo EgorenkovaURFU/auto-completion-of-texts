@@ -23,7 +23,7 @@ def make_objective(tokenizer, pad_id, collate, train_ds, val_ds, train_epoch, cr
         train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, collate_fn=collate)
         val_loader = DataLoader(val_ds, batch_size=bs, collate_fn=collate)
 
-        for epoch in range(3):
+        for epoch in range(num_epochs):
             train_loss = train_epoch(model, train_loader, optimizer, criterion, device)
 
         val_loss, _ = evaluate(model, val_loader, criterion, device)

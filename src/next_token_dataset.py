@@ -42,18 +42,3 @@ def make_collate_fn(pad_id: int):
 
     return collate_fn
 
-
-
-# class TextDataset(Dataset):
-#     def __init__(self, texts, tokenizer, max_len=128):
-#         self.texts = texts
-#         self.tokenizer = tokenizer
-#         self.max_len = max_len
-
-#     def __len__(self):
-#         return len(self.texts)
-
-#     def __getitem__(self, idx):
-#         text = self.texts[idx]
-#         ids = self.tokenizer.encode(text, truncation=True, max_length=self.max_len)
-#         return torch.tensor(ids, dtype=torch.long)
