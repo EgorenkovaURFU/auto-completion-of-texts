@@ -1,0 +1,58 @@
+import torch
+
+
+class RNN(torch.nn.Module):
+
+    def __init__(self, vacab_size: int, emb_dim: int = 128, hidden: int = 256, padding_idx: int = None):
+        super().__init__()
+
+        self.emb = torch.nn.Embedding(vacab_size, emb_dim, padding_idx=padding_idx)
+        self.rnn = torch.nn.LSTM(emb_dim, hidden, batch_first=True)
+        self.norm = torch.nn.LayerNorm(hidden)
+        self.dropout = torch.nn.Dropout(0.2)
+        self.out = torch.nn.Linear(hidden, vacab_size)
+
+        self.init_weights()
+
+    def init_weights(self):
+        torch.nn.init.xavier_uniform_(self.out.weight)
+        for name, param in self.rnn.named_parameters():
+            if 'weight' in name:
+                torch.nn.init.xavier_uniform_(param)
+
+    def forward(self, x):
+        emb = self.emb(x)
+        out, _ = self.rnn(emb)
+        out = self.norm(out)
+        out = self.dropout(out)
+        logits = self.out(out)
+        return logits
+    
+    @torch.no_grad()
+    def generate(self, seed_tokens, max_len=20, temperature=1.0, pad_id=None, device='cpu'):
+        """
+        seed_tokens: list[int] — начальная последовательность
+        max_len: сколько токенов генерировать
+        temperature: плавность распределения (для сэмплирования)
+        """
+        self.eval()
+        generated = list(seed_tokens)
+        input_seq = torch.tensor(generated, dtype=torch.long, device=device).unsqueeze(0)  # [1, L]
+        hidden = None
+        
+        for _ in range(max_len):
+            emb = self.emb(input_seq)                   # [1, L, emb_dim]
+            out, hidden = self.rnn(emb, hidden)        # out: [1, L, hidden], hidden: (h,c)
+            logits = self.out(out[:, -1, :])           # последний шаг: [1, vocab_size]
+            
+            probs = torch.softmax(logits / temperature, dim=-1)  # [1, vocab_size]
+            next_token = torch.multinomial(probs, num_samples=1).item()
+            
+            # Если паддинг — можно остановить
+            if pad_id is not None and next_token == pad_id:
+                break
+
+            generated.append(next_token)
+            input_seq = torch.tensor([next_token], dtype=torch.long, device=device).unsqueeze(0)
+        
+        return generated
